@@ -49,12 +49,26 @@ document.addEventListener('DOMContentLoaded', function() {
  * Inicializa todas as funcionalidades do portal
  */
 function inicializarPortal() {
+    // Adicionar classe específica da ONG ao body
+    const urlParams = new URLSearchParams(window.location.search);
+    const pathSlug = window.location.pathname.split('/').pop().replace('.html', '');
+    const ongSlug = urlParams.get('ong') || pathSlug || 'ampla';
+    
+    // Remover classes existentes de ONG
+    document.body.classList.remove('ong-ampla', 'ong-futuro');
+    
+    // Adicionar nova classe
+    document.body.classList.add(`ong-${ongSlug}`);
+    console.log('Classe adicionada ao body:', `ong-${ongSlug}`);
+    
     // Carregar informações da ONG
     carregarInformacoesONG();
     
     // Carregar dados financeiros
     carregarReceitas();
     carregarDespesas();
+    carregarLivrosContabeis();
+    carregarMuralAvisos();
     atualizarResumoFinanceiro();
     
     // Configurar eventos
@@ -82,13 +96,18 @@ function carregarInformacoesONG() {
     const ongNomeTitulo = document.getElementById('ong-nome-titulo');
     if (ongNomeTitulo) {
         ongNomeTitulo.textContent = dadosOng.nome;
+        ongNomeTitulo.classList.add('titulo-moderno');
     }
     
     // Descrição
-    document.getElementById('ong-descricao').innerHTML = `
-        <p>Este portal foi desenvolvido para garantir total transparência sobre os recursos financeiros da nossa organização.</p>
-        <p>${dadosOng.descricao}</p>
-    `;
+    const descricaoElement = document.getElementById('ong-descricao');
+    if (descricaoElement) {
+        descricaoElement.classList.add('texto-moderno');
+        descricaoElement.innerHTML = `
+            <p>Este portal foi desenvolvido para garantir total transparência sobre os recursos financeiros da nossa organização.</p>
+            <p>${dadosOng.descricao}</p>
+        `;
+    }
     
     // Contato
     const contatoContainer = document.getElementById('ong-contato');
@@ -147,6 +166,23 @@ function carregarReceitas(filtroAno = 'todos', filtroMes = 'todos', termoBusca =
     const tbody = document.querySelector('#tabela-receitas tbody');
     tbody.innerHTML = '';
     
+    // Verificar se existem dados de receitas
+    if (!dadosReceitas || dadosReceitas.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td colspan="4" class="text-center py-5">
+                <div class="d-flex flex-column align-items-center">
+                    <i class="bi bi-hourglass-split display-4 text-primary mb-3"></i>
+                    <h4 class="mb-2">Em breve</h4>
+                    <p class="text-muted">As receitas serão exibidas aqui em breve.</p>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        document.getElementById('soma-receitas').textContent = formatarMoeda(0);
+        return;
+    }
+    
     let dadosFiltrados = dadosReceitas;
     
     // Aplicar filtro de ano
@@ -194,7 +230,7 @@ function carregarReceitas(filtroAno = 'todos', filtroMes = 'todos', termoBusca =
     // Atualizar rodapé com total
     document.getElementById('soma-receitas').textContent = formatarMoeda(valorTotal);
     
-    // Caso não haja dados
+    // Caso não haja dados após a filtragem
     if (dadosFiltrados.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = '<td colspan="4" class="text-center">Nenhuma receita encontrada</td>';
@@ -208,6 +244,23 @@ function carregarReceitas(filtroAno = 'todos', filtroMes = 'todos', termoBusca =
 function carregarDespesas(filtroAno = 'todos', filtroMes = 'todos', termoBusca = '') {
     const tbody = document.querySelector('#tabela-despesas tbody');
     tbody.innerHTML = '';
+    
+    // Verificar se existem dados de despesas
+    if (!dadosDespesas || dadosDespesas.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td colspan="5" class="text-center py-5">
+                <div class="d-flex flex-column align-items-center">
+                    <i class="bi bi-hourglass-split display-4 text-primary mb-3"></i>
+                    <h4 class="mb-2">Em breve</h4>
+                    <p class="text-muted">As despesas serão exibidas aqui em breve.</p>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        document.getElementById('soma-despesas').textContent = formatarMoeda(0);
+        return;
+    }
     
     let dadosFiltrados = dadosDespesas;
     
@@ -258,7 +311,7 @@ function carregarDespesas(filtroAno = 'todos', filtroMes = 'todos', termoBusca =
     // Atualizar rodapé com total
     document.getElementById('soma-despesas').textContent = formatarMoeda(valorTotal);
     
-    // Caso não haja dados
+    // Caso não haja dados após a filtragem
     if (dadosFiltrados.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = '<td colspan="5" class="text-center">Nenhuma despesa encontrada</td>';
@@ -333,6 +386,33 @@ function configurarFiltros() {
         const busca = document.getElementById('busca-despesas').value;
         carregarDespesas(ano, mes, busca);
     });
+    
+    // Filtro de ano para livros contábeis
+    const filtroAnoLivros = document.getElementById('filtro-ano-livros');
+    if (filtroAnoLivros) {
+        console.log('Configurando evento change para filtro de livros contábeis');
+        filtroAnoLivros.addEventListener('change', function() {
+            const ano = String(this.value); // Garantir que é string
+            console.log('Evento change do filtro de livros:', ano, 'Tipo:', typeof ano);
+            const busca = document.getElementById('busca-livros').value;
+            carregarLivrosContabeis(ano, busca);
+        });
+        
+        // Inicializar com o valor atual para corrigir o estado inicial
+        const anoInicial = String(filtroAnoLivros.value);
+        console.log('Inicializando com valor:', anoInicial, 'Tipo:', typeof anoInicial);
+        
+        // Forçar carregamento inicial com o valor do select
+        setTimeout(() => {
+            if (anoInicial && anoInicial !== 'todos') {
+                console.log('Carregando livros com filtro inicial:', anoInicial);
+                const buscaInicial = document.getElementById('busca-livros').value;
+                carregarLivrosContabeis(anoInicial, buscaInicial);
+            }
+        }, 500);
+    } else {
+        console.error('Elemento de filtro de livros não encontrado');
+    }
 }
 
 /**
@@ -354,6 +434,16 @@ function configurarBuscas() {
         const mes = document.getElementById('filtro-mes-despesas').value;
         carregarDespesas(ano, mes, busca);
     });
+    
+    // Busca para livros contábeis
+    const buscaLivros = document.getElementById('busca-livros');
+    if (buscaLivros) {
+        buscaLivros.addEventListener('input', function() {
+            const busca = this.value;
+            const ano = document.getElementById('filtro-ano-livros').value;
+            carregarLivrosContabeis(ano, busca);
+        });
+    }
 }
 
 /**
@@ -386,4 +476,178 @@ function configurarModais() {
             }
         }
     });
+}
+
+/**
+ * Carrega os livros contábeis
+ */
+function carregarLivrosContabeis(filtroAno = 'todos', termoBusca = '') {
+    const containerLivros = document.getElementById('livros-contabeis');
+    const semLivros = document.getElementById('sem-livros');
+    
+    if (!containerLivros) {
+        console.error('Container de livros não encontrado');
+        return;
+    }
+    
+    // Limpar o container
+    containerLivros.innerHTML = '';
+    
+    // Obter o slug da ONG atual
+    const urlParams = new URLSearchParams(window.location.search);
+    const pathSlug = window.location.pathname.split('/').pop().replace('.html', '');
+    const ongSlug = urlParams.get('ong') || pathSlug || 'ampla';
+    
+    // Obter os livros contábeis da ONG atual
+    const livros = dadosONGs[ongSlug]?.livrosContabeis || [];
+    
+    // Verificar se existem livros contábeis
+    if (!livros || livros.length === 0) {
+        containerLivros.style.display = 'none';
+        semLivros.style.display = 'block';
+        semLivros.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <div class="d-flex flex-column align-items-center">
+                    <i class="bi bi-hourglass-split display-4 text-primary mb-3"></i>
+                    <h4 class="mb-2">Em breve</h4>
+                    <p class="text-muted">Os livros contábeis serão exibidos aqui em breve.</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Aplicar filtros
+    let livrosFiltrados = livros;
+    
+    if (filtroAno !== 'todos') {
+        // Garantir que a comparação seja feita entre strings
+        const filtroAnoString = String(filtroAno);
+        
+        livrosFiltrados = livrosFiltrados.filter(livro => {
+            return livro.ano === filtroAnoString;
+        });
+    }
+    
+    if (termoBusca) {
+        const termo = termoBusca.toLowerCase();
+        livrosFiltrados = livrosFiltrados.filter(livro => 
+            livro.nome.toLowerCase().includes(termo)
+        );
+    }
+    
+    // Exibir ou ocultar a mensagem de "sem livros"
+    if (livrosFiltrados.length === 0) {
+        containerLivros.style.display = 'none';
+        semLivros.style.display = 'block';
+        semLivros.innerHTML = '<div class="col-12 text-center">Nenhum livro contábil encontrado</div>';
+        return;
+    } else {
+        containerLivros.style.display = 'flex';
+        semLivros.style.display = 'none';
+    }
+    
+    // Renderizar os livros
+    livrosFiltrados.forEach(livro => {
+        const card = document.createElement('div');
+        card.className = 'col';
+        card.innerHTML = `
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-file-earmark-text display-1 text-primary mb-3"></i>
+                    <h5 class="card-title">${livro.nome}</h5>
+                    <p class="card-text"><small class="text-muted">Ano: ${livro.ano}</small></p>
+                </div>
+                <div class="card-footer text-center">
+                    <a href="${livro.arquivo}" class="btn btn-primary btn-sm" target="_blank">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                    <button class="btn btn-secondary btn-sm" onclick="visualizarDocumento(${livro.id})">
+                        <i class="bi bi-eye"></i> Visualizar
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        containerLivros.appendChild(card);
+    });
+}
+
+// Visualizar documento
+function visualizarDocumento(livroId) {
+    alert(`Visualização do documento ID ${livroId} em desenvolvimento.`);
+}
+
+/**
+ * Carrega os avisos do mural
+ */
+function carregarMuralAvisos() {
+    // Obter o slug da ONG atual
+    const urlParams = new URLSearchParams(window.location.search);
+    const pathSlug = window.location.pathname.split('/').pop().replace('.html', '');
+    const ongSlug = urlParams.get('ong') || pathSlug || 'ampla';
+    
+    // Obter os avisos do mural da ONG atual
+    const avisos = dadosONGs[ongSlug]?.muralAvisos || [];
+    
+    // Verificar se existem avisos
+    if (!avisos || avisos.length === 0) {
+        const muralSection = document.getElementById('mural');
+        if (muralSection) {
+            muralSection.innerHTML = `
+                <h2 class="border-bottom pb-2 mb-4">Mural de Avisos</h2>
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <div class="d-flex flex-column align-items-center">
+                            <i class="bi bi-hourglass-split display-4 text-primary mb-3"></i>
+                            <h4 class="mb-2">Em breve</h4>
+                            <p class="text-muted">Os avisos serão exibidos aqui em breve.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    // Renderizar os avisos
+    const muralSection = document.getElementById('mural');
+    if (muralSection) {
+        let html = `
+            <h2 class="border-bottom pb-2 mb-4">Mural de Avisos</h2>
+            <div class="card">
+                <div class="card-body">
+                    <div class="row mb-4">
+        `;
+        
+        // Adicionar cada aviso
+        avisos.forEach(aviso => {
+            html += `
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-dark text-white" style="background: linear-gradient(45deg, #000000, #333333) !important;">
+                            <h3 class="h5 mb-0">${aviso.titulo}</h3>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">${aviso.descricao}</p>
+                            <a href="${aviso.arquivo}" class="btn btn-primary btn-sm" target="_blank">
+                                <i class="bi bi-file-earmark-pdf"></i> Ver PDF
+                            </a>
+                        </div>
+                        <div class="card-footer text-muted">
+                            Publicado em: ${formatarData(aviso.data)}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        muralSection.innerHTML = html;
+    }
 } 
